@@ -1,0 +1,2 @@
+com\helpdesk\service\TicketService.class
+com\helpdesk\repository\TicketRepository.class
