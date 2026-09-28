@@ -11,7 +11,6 @@ dist/
 .env.*
 
 # Backend secrets
-**/application.properties
 **/application-local.properties
 
 # IDE
