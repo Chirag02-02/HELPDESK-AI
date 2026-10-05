@@ -81,6 +81,14 @@ public class GroqAiService {
     }
 
     public AiResponse chat(String userMessage, List<ConversationMessage> history, String userEmail, Long ticketId, String knowledgeContext) {
+        if (userMessage != null) {
+            AiResponse smallTalkReply = checkSmallTalk(userMessage);
+            if (smallTalkReply != null) {
+                return smallTalkReply;
+            }
+            userMessage = stripLeadingGreeting(userMessage);
+        }
+
         if (apiKey == null || apiKey.isBlank() || apiKey.equals("your_groq_api_key_here") || apiKey.contains("placeholder")) {
             return generateMockResponse(userMessage, userEmail, ticketId, knowledgeContext);
         }
@@ -103,6 +111,7 @@ public class GroqAiService {
                     .bodyValue(request)
                     .retrieve()
                     .bodyToMono(GroqResponse.class)
+                    .timeout(java.time.Duration.ofSeconds(12))
                     .block();
 
             if (response != null && !response.choices().isEmpty()) {
@@ -281,6 +290,68 @@ public class GroqAiService {
 
     private Ticket.Priority parsePriority(String p) {
         try { return Ticket.Priority.valueOf(p.toUpperCase().trim()); } catch (Exception e) { return Ticket.Priority.MEDIUM; }
+    }
+
+    private AiResponse checkSmallTalk(String rawMessage) {
+        if (rawMessage == null || rawMessage.isBlank()) return null;
+
+        String normalized = rawMessage.toLowerCase().trim()
+                .replaceAll("[^a-z0-9\\s]", " ")
+                .replaceAll("\\s+", " ")
+                .trim();
+
+        normalized = normalized.replaceAll("(.)\\1{2,}", "$1");
+        if (normalized.equals("hii")) normalized = "hi";
+        if (normalized.equals("heyy")) normalized = "hey";
+        if (normalized.equals("byee")) normalized = "bye";
+
+        String reply = null;
+
+        if (normalized.matches("^(hi|hello|hey|good morning|good afternoon|good evening|namaste)$")) {
+            reply = "Hi! I'm your AI helper. I can help with orders, refunds, payments and account issues. What do you need help with?";
+        } else if (normalized.matches("^(how are you|how r u|how are u|how is it going|hows it going|how are you doing)$")) {
+            reply = "I'm doing well, thanks for asking! How can I help you today?";
+        } else if (normalized.matches("^(thanks|thank you|thx|ty|thanku|thanks a lot|thank you so much)$")) {
+            reply = "You're welcome! Is there anything else I can help with?";
+        } else if (normalized.matches("^(ok|okay|cool|got it|k|alright|sure)$")) {
+            reply = "Great! Let me know if you need anything else.";
+        } else if (normalized.matches("^(bye|goodbye|see you|cya|bye bye|see ya)$")) {
+            reply = "Goodbye! If you need anything else, I'm here anytime.";
+        } else if (normalized.matches("^(who are you|what can you do|what do you do|who r u|what is your name|help)$")) {
+            reply = "I am HelpDesk AI! I can assist you with orders, refunds, technical troubleshooting, and account settings.";
+        }
+
+        if (reply != null) {
+            return AiResponse.builder()
+                    .reply(reply)
+                    .sentiment(Ticket.Sentiment.NEUTRAL)
+                    .priority(Ticket.Priority.LOW)
+                    .escalate(false)
+                    .department("GENERAL")
+                    .build();
+        }
+
+        return null;
+    }
+
+    private String stripLeadingGreeting(String rawMessage) {
+        if (rawMessage == null) return rawMessage;
+
+        String lower = rawMessage.trim();
+        String lowerClean = lower.toLowerCase();
+
+        String[] greetings = {"good morning", "good afternoon", "good evening", "hello", "namaste", "hi", "hey"};
+
+        for (String g : greetings) {
+            if (lowerClean.startsWith(g)) {
+                String rest = lower.substring(g.length()).trim();
+                rest = rest.replaceAll("^[!.,\\-?\\s]+", "").trim();
+                if (!rest.isEmpty()) {
+                    return rest;
+                }
+            }
+        }
+        return rawMessage;
     }
 
     // ── Inner records (request/response models) ──────────────

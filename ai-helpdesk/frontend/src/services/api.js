@@ -1,10 +1,13 @@
 import axios from 'axios'
 
-const api = axios.create({ baseURL: 'https://helpdesk-ai-1ci4.onrender.com/api' })
-// Attach JWT to every request
+const API_BASE_URL = import.meta.env.VITE_API_URL || '/api'
+const api = axios.create({ baseURL: API_BASE_URL, timeout: 15000 })
+// Attach JWT to protected requests only
 api.interceptors.request.use(config => {
-  const token = localStorage.getItem('hd_token')
-  if (token) config.headers.Authorization = `Bearer ${token}`
+  if (!config.url.includes('/auth/login') && !config.url.includes('/auth/register')) {
+    const token = localStorage.getItem('hd_token')
+    if (token) config.headers.Authorization = `Bearer ${token}`
+  }
   return config
 })
 
@@ -80,4 +83,18 @@ export const profileApi = {
   }),
 }
 
+export const getProfilePhotoUrl = (url) => {
+  if (!url) return ''
+  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('blob:') || url.startsWith('data:')) {
+    return url
+  }
+  const apiUrl = import.meta.env.VITE_API_URL || ''
+  if (apiUrl && apiUrl.startsWith('http')) {
+    const origin = new URL(apiUrl).origin
+    return `${origin}${url.startsWith('/') ? '' : '/'}${url}`
+  }
+  return url
+}
+
 export default api
+

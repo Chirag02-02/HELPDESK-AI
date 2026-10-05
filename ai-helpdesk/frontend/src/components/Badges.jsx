@@ -5,10 +5,20 @@ import {
   CreditCard, Cpu, User, Package, RotateCcw, Tag,
   Smile, Meh, Frown
 } from 'lucide-react'
+import Tooltip from './Tooltip'
 
 export function StatusBadge({ status }) {
   const s = status?.toUpperCase() || 'OPEN'
-  const displayLabel = status?.replace('_', ' ') || 'Open'
+  
+  const getLabel = () => {
+    switch (s) {
+      case 'PENDING': return 'Waiting for reply'
+      case 'CLOSED':
+      case 'RESOLVED': return 'Solved'
+      case 'IN_PROGRESS': return 'In progress'
+      case 'OPEN': default: return 'Open'
+    }
+  }
 
   const getIcon = () => {
     switch (s) {
@@ -24,13 +34,23 @@ export function StatusBadge({ status }) {
   return (
     <span className={`badge badge-${status?.toLowerCase()}`}>
       {getIcon()}
-      {displayLabel}
+      {getLabel()}
     </span>
   )
 }
 
-export function PriorityBadge({ priority }) {
+export function PriorityBadge({ priority, showTooltip = true }) {
   const p = priority?.toUpperCase() || 'MEDIUM'
+
+  const getLabel = () => {
+    switch (p) {
+      case 'CRITICAL':
+      case 'HIGH': return 'Urgent'
+      case 'MEDIUM': return 'Normal'
+      case 'LOW': return 'Not urgent'
+      default: return 'Normal'
+    }
+  }
 
   const getIcon = () => {
     switch (p) {
@@ -42,16 +62,32 @@ export function PriorityBadge({ priority }) {
     }
   }
 
+  const isUrgent = p === 'HIGH' || p === 'CRITICAL' || p === 'URGENT'
+
   return (
-    <span className={`badge badge-${p.toLowerCase()}`}>
+    <span className={`badge badge-${p.toLowerCase()}`} style={{ display: 'inline-flex', alignItems: 'center' }}>
       {getIcon()}
-      {p}
+      {getLabel()}
+      {isUrgent && showTooltip && (
+        <Tooltip text="High-priority requests that need immediate assistance from our support team." />
+      )}
     </span>
   )
 }
 
 export function CategoryBadge({ category }) {
   const c = category?.toUpperCase() || 'GENERAL'
+
+  const getLabel = () => {
+    switch (c) {
+      case 'TECHNICAL': return 'Technical issue'
+      case 'ORDER': return 'Order question'
+      case 'BILLING': return 'Billing question'
+      case 'ACCOUNT': return 'Account issue'
+      case 'REFUND': return 'Refund request'
+      default: return c.charAt(0) + c.slice(1).toLowerCase()
+    }
+  }
 
   const getIcon = () => {
     switch (c) {
@@ -67,7 +103,7 @@ export function CategoryBadge({ category }) {
   return (
     <span className="badge badge-category">
       {getIcon()}
-      {c}
+      {getLabel()}
     </span>
   )
 }

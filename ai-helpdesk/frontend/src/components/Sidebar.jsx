@@ -5,6 +5,7 @@ import {
   ListFilter, LogOut, Database, BookOpen, User
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
+import { getProfilePhotoUrl } from '../services/api'
 import AppLogo from './AppLogo'
 
 export default function Sidebar({ openTickets = 0, highPriority = 0 }) {
@@ -32,14 +33,14 @@ export default function Sidebar({ openTickets = 0, highPriority = 0 }) {
       <div className="nav-section">
         <div className="nav-section-label">Customer Hub</div>
         <NavLink to="/dashboard" className={({ isActive }) => 'nav-item' + (isActive ? ' active' : '')}>
-          <LayoutDashboard size={16} /> Overview
+          <LayoutDashboard size={16} /> Home
         </NavLink>
         <NavLink to="/chat" className={({ isActive }) => 'nav-item' + (isActive ? ' active' : '')}>
-          <MessageSquare size={16} /> AI Support Chat
+          <MessageSquare size={16} /> Chat with AI
           {openTickets > 0 && <span className="nav-badge">{openTickets}</span>}
         </NavLink>
         <NavLink to="/tickets" className={({ isActive }) => 'nav-item' + (isActive ? ' active' : '')}>
-          <Ticket size={16} /> My Tickets
+          <Ticket size={16} /> My Requests
         </NavLink>
         <NavLink to="/profile" className={({ isActive }) => 'nav-item' + (isActive ? ' active' : '')}>
           <User size={16} /> My Profile
@@ -48,22 +49,28 @@ export default function Sidebar({ openTickets = 0, highPriority = 0 }) {
 
       {/* Admin / Agent Support Queue */}
       {isAdminOrAgent && (
-        <div className="nav-section">
-          <div className="nav-section-label">Management</div>
-          <NavLink to="/admin" className={({ isActive }) => 'nav-item' + (isActive ? ' active' : '')}>
-            <BarChart3 size={16} /> Performance
-          </NavLink>
-          <NavLink to="/admin/tickets" className={({ isActive }) => 'nav-item' + (isActive ? ' active' : '')}>
-            <ListFilter size={16} /> Ticket Queue
-            {highPriority > 0 && <span className="nav-badge danger">{highPriority}</span>}
-          </NavLink>
-          <NavLink to="/admin/knowledge" className={({ isActive }) => 'nav-item' + (isActive ? ' active' : '')}>
-            <BookOpen size={16} /> Knowledge Base
-          </NavLink>
-          <NavLink to="/admin/dataset" className={({ isActive }) => 'nav-item' + (isActive ? ' active' : '')}>
-            <Database size={16} /> AI Datasets
-          </NavLink>
-        </div>
+        <>
+          <div className="nav-section">
+            <div className="nav-section-label">Workspace</div>
+            <NavLink to="/admin" end className={({ isActive }) => 'nav-item' + (isActive ? ' active' : '')}>
+              <BarChart3 size={16} /> Dashboard
+            </NavLink>
+            <NavLink to="/admin/tickets" className={({ isActive }) => 'nav-item' + (isActive ? ' active' : '')}>
+              <ListFilter size={16} /> Tickets
+              {highPriority > 0 && <span className="nav-badge danger">{highPriority}</span>}
+            </NavLink>
+          </div>
+
+          <div className="nav-section">
+            <div className="nav-section-label">AI & Datasets</div>
+            <NavLink to="/admin/knowledge" className={({ isActive }) => 'nav-item' + (isActive ? ' active' : '')}>
+              <BookOpen size={16} /> Knowledge Base
+            </NavLink>
+            <NavLink to="/admin/dataset" className={({ isActive }) => 'nav-item' + (isActive ? ' active' : '')}>
+              <Database size={16} /> AI Datasets
+            </NavLink>
+          </div>
+        </>
       )}
 
       {/* User Footer Profile */}
@@ -75,7 +82,7 @@ export default function Sidebar({ openTickets = 0, highPriority = 0 }) {
           style={{ cursor: 'pointer', overflow: 'hidden' }}
         >
           {user?.profilePhotoUrl ? (
-            <img src={user.profilePhotoUrl} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            <img src={getProfilePhotoUrl(user.profilePhotoUrl)} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
           ) : (
             <span>{initials}</span>
           )}

@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react'
+import { profileApi } from '../services/api'
 
 const AuthContext = createContext(null)
 
@@ -9,11 +10,33 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     const saved = localStorage.getItem('hd_user')
-    if (saved && token) {
+    if (saved) {
       try { setUser(JSON.parse(saved)) } catch {}
     }
-    setLoading(false)
-  }, [])
+
+    if (token) {
+      profileApi.get()
+        .then(res => {
+          if (res.data) {
+            const freshUser = {
+              name: res.data.name,
+              email: res.data.email,
+              role: res.data.role,
+              profilePhotoUrl: res.data.profilePhotoUrl
+            }
+            setUser(prev => {
+              const merged = { ...prev, ...freshUser }
+              localStorage.setItem('hd_user', JSON.stringify(merged))
+              return merged
+            })
+          }
+        })
+        .catch(() => {})
+        .finally(() => setLoading(false))
+    } else {
+      setLoading(false)
+    }
+  }, [token])
 
   const login = (userData, jwt) => {
     setUser(userData)

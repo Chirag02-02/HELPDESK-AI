@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Plus, RotateCcw, XCircle, MessageSquare, Search, Filter, LifeBuoy, AlertTriangle, Ticket } from 'lucide-react'
+import { Plus, MessageSquare, Search, Ticket, Bot, CheckCircle2, AlertTriangle } from 'lucide-react'
 import { ticketApi } from '../services/api'
 import { useToast } from '../context/ToastContext'
 import { StatusBadge, PriorityBadge, CategoryBadge } from '../components/Badges'
@@ -9,7 +9,13 @@ import TopBar from '../components/TopBar'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 
-const FILTERS = ['ALL', 'OPEN', 'PENDING', 'IN_PROGRESS', 'CLOSED']
+const FILTERS = [
+  { id: 'ALL', label: 'All' },
+  { id: 'OPEN', label: 'Open' },
+  { id: 'PENDING', label: 'Waiting for reply' },
+  { id: 'IN_PROGRESS', label: 'In progress' },
+  { id: 'CLOSED', label: 'Solved' }
+]
 
 export default function MyTicketsPage() {
   const toast = useToast()
@@ -26,7 +32,7 @@ export default function MyTicketsPage() {
     setLoading(true)
     ticketApi.myList()
       .then(r => setTickets(r.data))
-      .catch(() => toast('Failed to load tickets', 'error'))
+      .catch(() => toast('Failed to load requests', 'error'))
       .finally(() => setLoading(false))
   }
 
@@ -41,51 +47,29 @@ export default function MyTicketsPage() {
     return matchesFilter && matchesSearch
   })
 
-  const handleClose = async id => {
-    try {
-      await ticketApi.close(id)
-      setTickets(t => t.map(x => x.id === id ? { ...x, status: 'CLOSED' } : x))
-      setSelected(s => s?.id === id ? { ...s, status: 'CLOSED' } : s)
-      toast(`Ticket #${id} closed`, 'success')
-    } catch {
-      toast('Failed to close ticket', 'error')
-    }
-  }
-
-  const handleReopen = async id => {
-    try {
-      await ticketApi.reopen(id)
-      setTickets(t => t.map(x => x.id === id ? { ...x, status: 'OPEN' } : x))
-      setSelected(s => s?.id === id ? { ...s, status: 'OPEN' } : s)
-      toast(`Ticket #${id} reopened`, 'success')
-    } catch {
-      toast('Failed to reopen ticket', 'error')
-    }
-  }
-
   const handleEscalate = async id => {
     try {
       const { data } = await ticketApi.escalate(id)
       setTickets(t => t.map(x => x.id === id ? data : x))
       setSelected(null)
-      toast('Ticket raised for human support selection', 'success')
+      toast('Request sent to human support team', 'success')
       navigate(`/chat?ticketId=${id}`)
     } catch {
-      toast('Failed to escalate ticket', 'error')
+      toast('Failed to escalate request', 'error')
     }
   }
 
-  const fmt = d => d ? new Date(d).toLocaleString() : '—'
+  const fmt = d => d ? new Date(d).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : '—'
 
   return (
     <div className="main">
       <TopBar
-        title="My Support Tickets"
-        subtitle="Manage and track your customer service inquiries"
+        title="My Requests"
+        subtitle="Track and manage all your support requests"
         actions={
           user?.role === 'CUSTOMER' && (
-            <button className="btn btn-primary" onClick={() => setShowNew(true)}>
-              <Plus size={15} /> Submit New Ticket
+            <button className="btn btn-primary" onClick={() => setShowNew(true)} style={{ minHeight: '38px', padding: '6px 12px' }}>
+              <Plus size={15} /> <span>Report Problem</span>
             </button>
           )
         }
@@ -97,23 +81,24 @@ export default function MyTicketsPage() {
           <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
             {FILTERS.map(f => (
               <button
-                key={f}
-                className={`btn btn-sm ${filter === f ? 'btn-primary' : ''}`}
-                onClick={() => setFilter(f)}
+                key={f.id}
+                className={`btn btn-sm ${filter === f.id ? 'btn-primary' : ''}`}
+                onClick={() => setFilter(f.id)}
+                style={{ minHeight: '36px' }}
               >
-                {f.replace('_', ' ')}
-                <span style={{ marginLeft: '6px', opacity: 0.8, fontSize: '11px', fontWeight: 700 }}>
-                  {f === 'ALL' ? tickets.length : tickets.filter(t => t.status === f).length}
+                {f.label}
+                <span style={{ marginLeft: '6px', opacity: 0.85, fontSize: '11px', fontWeight: 700 }}>
+                  {f.id === 'ALL' ? tickets.length : tickets.filter(t => t.status === f.id).length}
                 </span>
               </button>
             ))}
           </div>
 
-          <div style={{ position: 'relative', width: '260px' }}>
+          <div style={{ position: 'relative', width: '100%', maxWidth: '260px' }}>
             <Search size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-dim)' }} />
             <input
               className="input"
-              placeholder="Search by ID or subject..."
+              placeholder="Search by ID or title..."
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
               style={{ paddingLeft: '32px' }}
@@ -123,61 +108,123 @@ export default function MyTicketsPage() {
 
         {loading ? (
           <div className="empty">
-            <div className="empty-msg">Fetching support ticket list...</div>
+            <div className="empty-msg">Fetching your support requests...</div>
           </div>
         ) : filtered.length === 0 ? (
-          <div className="empty">
-            <div className="empty-icon"><Ticket size={32} style={{ color: 'var(--text-dim)' }} /></div>
-            <div className="empty-msg">No {filter !== 'ALL' ? filter.toLowerCase() + ' ' : ''}tickets matching your criteria.</div>
+          <div className="empty" style={{ padding: '40px 20px', textAlign: 'center' }}>
+            <div className="empty-icon" style={{ margin: '0 auto 12px' }}>
+              <Ticket size={36} style={{ color: 'var(--text-dim)' }} />
+            </div>
+            <div className="empty-msg" style={{ fontSize: '15px', color: 'var(--text-main)', marginBottom: '8px' }}>
+              {tickets.length === 0
+                ? "You haven't sent any requests yet. Need help? Start a chat or report a problem."
+                : "No requests match your current filters."}
+            </div>
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', marginTop: '16px' }}>
+              <button className="btn btn-primary" onClick={() => navigate('/chat')}>
+                <Bot size={15} /> Start Chat
+              </button>
+              <button className="btn" onClick={() => setShowNew(true)}>
+                <Plus size={15} /> Report a Problem
+              </button>
+            </div>
           </div>
         ) : (
-          <div className="table-wrap">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Ticket ID</th>
-                  <th>Subject</th>
-                  <th>Category</th>
-                  <th>Priority</th>
-                  <th>Status</th>
-                  <th>Assigned To</th>
-                  <th>Created Date</th>
-                  <th style={{ textAlign: 'right' }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map(t => (
-                  <tr key={t.id} style={{ cursor: 'pointer' }} onClick={() => setSelected(t)}>
-                    <td style={{ fontFamily: 'var(--font-mono)', fontSize: '12px', color: 'var(--accent-light)', fontWeight: 600 }}>
-                      #{t.id}
-                    </td>
-                    <td>
-                      <div style={{ fontWeight: 600, fontSize: '13.5px', color: 'var(--text-main)' }}>{t.title}</div>
-                    </td>
-                    <td><CategoryBadge category={t.category} /></td>
-                    <td><PriorityBadge priority={t.priority} /></td>
-                    <td><StatusBadge status={t.status} /></td>
-                    <td style={{ color: 'var(--text-muted)', fontSize: '12.5px' }}>{t.assignedTo || 'Unassigned'}</td>
-                    <td style={{ color: 'var(--text-dim)', fontSize: '12px' }}>{fmt(t.createdAt)}</td>
-                    <td style={{ textAlign: 'right' }} onClick={e => e.stopPropagation()}>
-                      <button
-                        className="btn btn-primary btn-sm"
-                        onClick={() => navigate(`/chat?ticketId=${t.id}`)}
-                      >
-                        <MessageSquare size={13} /> Chat
-                      </button>
-                    </td>
+          <>
+            {/* Desktop Table View */}
+            <div className="table-wrap desktop-only">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Request ID</th>
+                    <th>Subject</th>
+                    <th>Category</th>
+                    <th>Priority</th>
+                    <th>Status</th>
+                    <th>Assigned To</th>
+                    <th>Date Created</th>
+                    <th style={{ textAlign: 'right' }}>Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {filtered.map(t => (
+                    <tr key={t.id} style={{ cursor: 'pointer' }} onClick={() => setSelected(t)}>
+                      <td style={{ fontFamily: 'var(--font-mono)', fontSize: '12px', color: 'var(--accent-light)', fontWeight: 600 }}>
+                        #{t.id}
+                      </td>
+                      <td>
+                        <div style={{ fontWeight: 600, fontSize: '13.5px', color: 'var(--text-main)' }}>{t.title}</div>
+                      </td>
+                      <td><CategoryBadge category={t.category} /></td>
+                      <td><PriorityBadge priority={t.priority} /></td>
+                      <td><StatusBadge status={t.status} /></td>
+                      <td style={{ color: 'var(--text-muted)', fontSize: '12.5px' }}>{t.assignedTo || 'AI Helper'}</td>
+                      <td style={{ color: 'var(--text-dim)', fontSize: '12px' }}>{fmt(t.createdAt)}</td>
+                      <td style={{ textAlign: 'right' }} onClick={e => e.stopPropagation()}>
+                        <button
+                          className="btn btn-primary btn-sm"
+                          onClick={() => navigate(`/chat?ticketId=${t.id}`)}
+                        >
+                          <MessageSquare size={13} /> Chat
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile Stacked Cards View */}
+            <div className="mobile-only-cards" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {filtered.map(t => (
+                <div
+                  key={t.id}
+                  onClick={() => setSelected(t)}
+                  style={{
+                    padding: '14px',
+                    background: 'var(--bg-card)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius-md)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '10px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+                    <div>
+                      <div style={{ fontWeight: 600, fontSize: '14px', color: 'var(--text-main)', lineHeight: 1.4 }}>{t.title}</div>
+                      <div style={{ fontSize: '11px', color: 'var(--text-dim)', fontFamily: 'var(--font-mono)', marginTop: '2px' }}>#{t.id} • {fmt(t.createdAt)}</div>
+                    </div>
+                    <StatusBadge status={t.status} />
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '6px', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                      <CategoryBadge category={t.category} />
+                      <PriorityBadge priority={t.priority} />
+                    </div>
+                    <button
+                      className="btn btn-primary btn-sm"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        navigate(`/chat?ticketId=${t.id}`)
+                      }}
+                      style={{ padding: '6px 12px' }}
+                    >
+                      <MessageSquare size={13} /> Chat
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
         )}
       </div>
 
-      {/* Ticket Detail Modal */}
+      {/* Request Detail Modal */}
       {selected && (
-        <Modal title={`Ticket #${selected.id} — ${selected.title}`} onClose={() => setSelected(null)}>
+        <Modal title={`Request #${selected.id} — ${selected.title}`} onClose={() => setSelected(null)}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px 20px', marginBottom: '20px' }}>
             <div>
               <div className="form-label">Status</div>
@@ -193,12 +240,12 @@ export default function MyTicketsPage() {
             </div>
             <div>
               <div className="form-label">Assigned Handler</div>
-              <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-main)' }}>{selected.assignedTo || 'Unassigned'}</span>
+              <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-main)' }}>{selected.assignedTo || 'AI Helper'}</span>
             </div>
             <div>
-              <div className="form-label">AI Resolved Status</div>
+              <div className="form-label">Solved by AI</div>
               <span style={{ fontSize: '13px', color: selected.aiResolved ? 'var(--green)' : 'var(--text-muted)' }}>
-                {selected.aiResolved ? 'Yes (RAG Resolved)' : 'No (Human Queue)'}
+                {selected.aiResolved ? 'Yes (Answered by AI)' : 'No (Assigned to support team)'}
               </span>
             </div>
             <div>
@@ -214,13 +261,13 @@ export default function MyTicketsPage() {
             </div>
           )}
 
-          <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', paddingTop: '16px', borderTop: '1px solid var(--border)' }}>
-            <button className="btn btn-primary" onClick={() => { setSelected(null); navigate(`/chat?ticketId=${selected.id}`); }}>
-              <MessageSquare size={14} /> Open Conversation Chat
+          <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', paddingTop: '16px', borderTop: '1px solid var(--border)', flexWrap: 'wrap' }}>
+            <button className="btn btn-primary" onClick={() => { setSelected(null); navigate(`/chat?ticketId=${selected.id}`); }} style={{ flex: 1 }}>
+              <MessageSquare size={14} /> Open Chat
             </button>
             {selected.status !== 'CLOSED' && selected.assignedTo === 'AI' && (
-              <button className="btn btn-danger" onClick={() => handleEscalate(selected.id)}>
-                <AlertTriangle size={14} /> Escalate to Agent Queue
+              <button className="btn btn-danger" onClick={() => handleEscalate(selected.id)} style={{ flex: 1 }}>
+                <AlertTriangle size={14} /> Request Agent
               </button>
             )}
           </div>
@@ -232,7 +279,6 @@ export default function MyTicketsPage() {
           onClose={() => setShowNew(false)}
           onCreated={t => {
             setTickets(prev => [t, ...prev])
-            setShowNew(false)
           }}
         />
       )}

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { User, Mail, ShieldCheck, Headset, Camera, Save, X, Loader2, CheckCircle2, AlertTriangle, Upload, Trash2 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
-import { profileApi } from '../services/api'
+import { profileApi, getProfilePhotoUrl } from '../services/api'
 import TopBar from '../components/TopBar'
 
 export default function ProfilePage() {
@@ -160,13 +160,14 @@ export default function ProfilePage() {
     .toUpperCase()
     .slice(0, 2)
 
-  const activePhoto = previewUrl || photoUrl || user?.profilePhotoUrl
+  const rawPhoto = previewUrl || photoUrl || user?.profilePhotoUrl
+  const activePhoto = previewUrl ? previewUrl : getProfilePhotoUrl(rawPhoto)
 
   return (
     <div className="main">
       <TopBar
-        title="My User Profile"
-        subtitle="Manage personal details, security settings, and avatar image"
+        title="My Profile"
+        subtitle="View and update your personal account details"
       />
 
       <div className="page" style={{ maxWidth: '840px', margin: '0 auto' }}>
@@ -292,7 +293,7 @@ export default function ProfilePage() {
             {/* Profile Form Card */}
             <div className="card" style={{ padding: '24px', background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
               <h3 style={{ fontSize: '15px', fontWeight: 700, marginBottom: '18px', color: 'var(--text-main)', borderBottom: '1px solid var(--border)', paddingBottom: '10px' }}>
-                Account Information & Settings
+                Account Details
               </h3>
 
               <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
@@ -310,7 +311,7 @@ export default function ProfilePage() {
                     required
                   />
                   <div style={{ fontSize: '11px', color: 'var(--text-dim)', marginTop: '4px' }}>
-                    This name is displayed across ticket history and support conversations.
+                    This name is displayed on your support requests.
                   </div>
                 </div>
 

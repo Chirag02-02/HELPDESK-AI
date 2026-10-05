@@ -11,7 +11,7 @@ dist/
 .env.*
 
 # Backend secrets
-**/application-local.properties
+
 
 # IDE
 .idea/
@@ -24,3 +24,12 @@ dist/
 # OS
 .DS_Store
 Thumbs.db
+
+# Local development secrets
+ai-helpdesk/src/main/resources/application-local.properties
+
+# Temporary files
+ai-helpdesk/scratch/
+
+# Frontend build
+ai-helpdesk/frontend/dist/

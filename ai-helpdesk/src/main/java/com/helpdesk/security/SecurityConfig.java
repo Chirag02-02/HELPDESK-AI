@@ -35,7 +35,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
 import java.util.List;
 
-// ── UserDetailsService ───────────────────────────────────────
+// -- UserDetailsService ---------------------------------------
 
 @Component
 @RequiredArgsConstructor
@@ -56,7 +56,7 @@ class UserDetailsServiceImpl implements UserDetailsService {
     }
 }
 
-// ── JWT Filter ───────────────────────────────────────────────
+// -- JWT Filter -----------------------------------------------
 
 @Component
 @RequiredArgsConstructor
@@ -64,6 +64,12 @@ class JwtAuthFilter extends OncePerRequestFilter {
 
     private final JwtUtil jwtUtil;
     private final UserDetailsService userDetailsService;
+
+    @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        String path = request.getServletPath();
+        return path.startsWith("/api/auth/") || path.startsWith("/api/uploads/");
+    }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
@@ -79,24 +85,28 @@ class JwtAuthFilter extends OncePerRequestFilter {
         }
 
         final String jwt = authHeader.substring(7);
-        final String email = jwtUtil.extractEmail(jwt);
+        try {
+            final String email = jwtUtil.extractEmail(jwt);
 
-        if (email != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-            var userDetails = userDetailsService.loadUserByUsername(email);
-            if (jwtUtil.isTokenValid(jwt, userDetails)) {
-                var authToken = new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(
-                        userDetails, null, userDetails.getAuthorities());
-                authToken.setDetails(new org.springframework.security.web.authentication.WebAuthenticationDetailsSource()
-                        .buildDetails(request));
-                SecurityContextHolder.getContext().setAuthentication(authToken);
+            if (email != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+                var userDetails = userDetailsService.loadUserByUsername(email);
+                if (jwtUtil.isTokenValid(jwt, userDetails)) {
+                    var authToken = new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(
+                            userDetails, null, userDetails.getAuthorities());
+                    authToken.setDetails(new org.springframework.security.web.authentication.WebAuthenticationDetailsSource()
+                            .buildDetails(request));
+                    SecurityContextHolder.getContext().setAuthentication(authToken);
+                }
             }
+        } catch (Exception ex) {
+            // Ignore invalid or expired token exceptions on filter level
         }
 
         filterChain.doFilter(request, response);
     }
 }
 
-// ── Security Config ──────────────────────────────────────────
+// -- Security Config ------------------------------------------
 
 @Configuration
 @EnableWebSecurity
@@ -148,12 +158,16 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(List.of(
-        "http://localhost:3000",
-        "http://localhost:5173",
-        "https://helpdesk-ai-git-master-chirag-s-projects23.vercel.app"
-));
-        config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        config.setAllowedOriginPatterns(List.of(
+            "http://localhost:*",
+            "https://localhost:*",
+            "http://localhost",
+            "https://localhost",
+            "capacitor://localhost",
+            "https://helpdesk-ai-git-master-chirag-s-projects23.vercel.app",
+            "*"
+        ));
+        config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD", "PATCH"));
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true);
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();

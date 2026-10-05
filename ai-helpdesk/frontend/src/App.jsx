@@ -2,6 +2,7 @@ import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { ToastProvider } from './context/ToastContext'
 import Sidebar from './components/Sidebar'
+import BottomNav from './components/BottomNav'
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
 import DashboardPage from './pages/DashboardPage'
@@ -18,7 +19,7 @@ function PrivateRoute({ children, adminOnly = false }) {
   const location = useLocation()
 
   if (loading) return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', color: 'var(--text-3)', fontSize: 13 }}>
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100dvh', color: 'var(--text-3)', fontSize: 13 }}>
       Loading…
     </div>
   )
@@ -43,14 +44,18 @@ function AppLayout() {
         <Route path="/admin/dataset" element={<PrivateRoute adminOnly><AdminDatasetPage /></PrivateRoute>} />
         <Route path="*"          element={<Navigate to="/dashboard" replace />} />
       </Routes>
+      <BottomNav />
     </div>
   )
 }
+
+import BackButtonHandler from './components/BackButtonHandler'
 
 export default function App() {
   return (
     <AuthProvider>
       <ToastProvider>
+        <BackButtonHandler />
         <Routes>
           <Route path="/login"    element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />

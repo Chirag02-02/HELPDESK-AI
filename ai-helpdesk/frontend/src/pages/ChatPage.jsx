@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { Bot, Send, Plus, Loader2, Key, Package, Wrench, RotateCcw, Headphones, User, AlertTriangle, ShieldCheck, Sparkles, CheckCircle2, UserCheck } from 'lucide-react'
+import { Bot, Send, Plus, Loader2, Key, Package, Headphones, User, AlertTriangle, Sparkles, CheckCircle2, UserCheck, MessageSquare } from 'lucide-react'
 import { chatApi, ticketApi, adminApi } from '../services/api'
 import { useToast } from '../context/ToastContext'
 import { useNavigate, useSearchParams } from 'react-router-dom'
@@ -7,13 +7,13 @@ import { StatusBadge, PriorityBadge, CategoryBadge } from '../components/Badges'
 import { useAuth } from '../context/AuthContext'
 import TopBar from '../components/TopBar'
 
-const SUGGESTIONS = [
-  { icon: Headphones, label: 'Talk to Human Support', isHumanTrigger: true },
-  { icon: Key, label: 'Forgot password', msg: 'I forgot my password, how do I reset it?' },
-  { icon: Package, label: 'Track my order', msg: 'Where is my order? I need a tracking update.' },
-  { icon: Wrench, label: 'Technical crash', msg: 'The web app crashes when I click submit.' },
-  { icon: RotateCcw, label: 'Request refund', msg: 'I want to request a refund for my last payment.' },
+const CHAT_SUGGESTIONS = [
+  { icon: Package, label: 'Where is my order?', msg: 'Where is my order?' },
+  { icon: Key, label: "I can't log in", msg: "I can't log in to my account." },
+  { icon: Headphones, label: 'Talk to a human', isHumanTrigger: true }
 ]
+
+const INITIAL_AI_MSG = "Hi! I'm your AI helper. Ask me anything about your orders, account, or login. If I can't solve it, I'll pass it to our team."
 
 function now() {
   return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
@@ -31,8 +31,6 @@ export default function ChatPage() {
   const [loading, setLoading] = useState(false)
   const [activeTicketId, setActiveTicketId] = useState(null)
   const [ticketDetails, setTicketDetails] = useState(null)
-  const [ticketForm, setTicketForm] = useState({ category: 'TECHNICAL', description: '' })
-  const [creatingTicket, setCreatingTicket] = useState(false)
 
   // Customer Human Support Selection States
   const [showAgentModal, setShowAgentModal] = useState(false)
@@ -57,7 +55,7 @@ export default function ChatPage() {
     setClosingTicket(true)
     try {
       await adminApi.closeTicket(activeTicketId)
-      toast(`Ticket #${activeTicketId} marked as resolved & closed`, 'success')
+      toast(`Request #${activeTicketId} marked as solved`, 'success')
       const [updatedTicketRes, updatedMessagesRes] = await Promise.all([
         ticketApi.getOne(activeTicketId),
         ticketApi.getMessages(activeTicketId)
@@ -65,11 +63,13 @@ export default function ChatPage() {
       setTicketDetails(updatedTicketRes.data)
       const formatted = (updatedMessagesRes.data || []).map(m => {
         let senderName = 'Customer'
-        if (m.senderType === 'AI') senderName = 'HelpDesk AI'
+        if (m.senderType === 'AI') senderName = 'AI Helper'
         else if (m.senderType === 'AGENT') senderName = 'Support Agent'
         else if (updatedTicketRes.data?.user?.name) senderName = updatedTicketRes.data.user.name
 
         return {
+          id: m.id,
+          senderType: m.senderType,
           role: m.senderType === 'AI' ? 'ai' : m.senderType === 'AGENT' ? 'agent' : 'user',
           senderName,
           text: m.content,
@@ -78,7 +78,7 @@ export default function ChatPage() {
       })
       setMessages(formatted)
     } catch (err) {
-      toast('Failed to close ticket: ' + (err.response?.data?.message || err.message), 'error')
+      toast('Failed to close request: ' + (err.response?.data?.message || err.message), 'error')
     } finally {
       setClosingTicket(false)
     }
@@ -92,7 +92,7 @@ export default function ChatPage() {
         setAvailableAgents(res.data || [])
       })
       .catch(() => {
-        setAgentsError("Unable to load support options. Please try again.")
+        setAgentsError("Unable to load support team. Please try again.")
       })
       .finally(() => {
         setLoadingAgents(false)
@@ -119,16 +119,18 @@ export default function ChatPage() {
       const { data: updatedTicket } = await ticketApi.assignAgent(activeTicketId, selectedAgentId)
       setTicketDetails(updatedTicket)
       setShowAgentModal(false)
-      toast(`Successfully connected to support representative (${updatedTicket.assignedTo})!`, 'success')
+      toast(`Connected to support agent (${updatedTicket.assignedTo})!`, 'success')
 
       const res = await ticketApi.getMessages(activeTicketId)
       const formatted = (res.data || []).map(m => {
         let senderName = 'Customer'
-        if (m.senderType === 'AI') senderName = 'HelpDesk AI'
+        if (m.senderType === 'AI') senderName = 'AI Helper'
         else if (m.senderType === 'AGENT') senderName = updatedTicket.assignedTo || 'Support Agent'
         else if (updatedTicket.user?.name) senderName = updatedTicket.user.name
 
         return {
+          id: m.id,
+          senderType: m.senderType,
           role: m.senderType === 'AI' ? 'ai' : m.senderType === 'AGENT' ? 'agent' : 'user',
           senderName,
           text: m.content,
@@ -137,7 +139,7 @@ export default function ChatPage() {
       })
       setMessages(formatted)
     } catch (err) {
-      const msg = err.response?.data?.message || "Could not connect to the selected support representative. Please try again."
+      const msg = err.response?.data?.message || "Could not connect to support agent. Please try again."
       toast(msg, 'error')
       setAgentsError(msg)
     } finally {
@@ -189,11 +191,13 @@ export default function ChatPage() {
 
             const formatted = (messagesRes.data || []).map(m => {
               let senderName = 'Customer'
-              if (m.senderType === 'AI') senderName = 'HelpDesk AI'
+              if (m.senderType === 'AI') senderName = 'AI Helper'
               else if (m.senderType === 'AGENT') senderName = 'Support Agent'
               else if (tDetails?.user?.name) senderName = tDetails.user.name
 
               return {
+                id: m.id,
+                senderType: m.senderType,
                 role: m.senderType === 'AI' ? 'ai' : m.senderType === 'AGENT' ? 'agent' : 'user',
                 senderName,
                 text: m.content,
@@ -207,7 +211,7 @@ export default function ChatPage() {
               text: tDetails.description,
               time: tDetails.createdAt ? new Date(tDetails.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : now()
             }] : [
-              { role: 'ai', senderName: 'HelpDesk AI', text: `Hi ${user?.name || 'there'}! I am your AI support assistant powered by Hybrid RAG. Describe your issue below.`, time: now() }
+              { role: 'ai', senderName: 'AI Helper', text: INITIAL_AI_MSG, time: now() }
             ]))
           })
           .catch(() => {
@@ -221,7 +225,7 @@ export default function ChatPage() {
       setActiveTicketId(null)
       setTicketDetails(null)
       setMessages([
-        { role: 'ai', senderName: 'HelpDesk AI', text: "Hi! I'm your AI support assistant. I can help with password resets, order tracking, billing charges, and app troubleshooting. How can I help resolve your issue today?", time: now() }
+        { role: 'ai', senderName: 'AI Helper', text: INITIAL_AI_MSG, time: now() }
       ])
     }
   }, [urlTicketId, user])
@@ -238,11 +242,13 @@ export default function ChatPage() {
         .then(res => {
           const formatted = res.data.map(m => {
             let senderName = 'Customer'
-            if (m.senderType === 'AI') senderName = 'HelpDesk AI'
+            if (m.senderType === 'AI') senderName = 'AI Helper'
             else if (m.senderType === 'AGENT') senderName = 'Support Agent'
             else if (ticketDetails?.user?.name) senderName = ticketDetails.user.name
 
             return {
+              id: m.id,
+              senderType: m.senderType,
               role: m.senderType === 'AI' ? 'ai' : m.senderType === 'AGENT' ? 'agent' : 'user',
               senderName,
               text: m.content,
@@ -278,7 +284,6 @@ export default function ChatPage() {
   const ensureTicket = async (firstMessageText) => {
     if (activeTicketId) return activeTicketId
 
-    setCreatingTicket(true)
     try {
       const titleSnippet = firstMessageText.length > 30 ? firstMessageText.substring(0, 30) + '...' : firstMessageText
       const { data: newTicket } = await ticketApi.create({
@@ -292,10 +297,8 @@ export default function ChatPage() {
       navigate(`/chat?ticketId=${newTicket.id}`, { replace: true })
       return newTicket.id
     } catch (err) {
-      toast('Failed to initialize ticket context', 'error')
+      toast('Failed to initialize request', 'error')
       return null
-    } finally {
-      setCreatingTicket(false)
     }
   }
 
@@ -306,56 +309,94 @@ export default function ChatPage() {
     setInput('')
     setLoading(true)
 
-    const userMsg = { role: 'user', senderName: user?.name || 'Customer', text, time: now() }
+    const userMsg = {
+      senderType: isAdminOrAgent ? 'AGENT' : 'CUSTOMER',
+      role: isAdminOrAgent ? 'agent' : 'user',
+      senderName: user?.name || (isAdminOrAgent ? 'Support Agent' : 'Customer'),
+      text,
+      time: now()
+    }
     setMessages(prev => [...prev, userMsg])
 
     try {
-      const ticketId = await ensureTicket(text)
-      if (!ticketId) {
-        setLoading(false)
-        return
-      }
-
-      if (isAdminOrAgent) {
-        await adminApi.replyTicket(ticketId, { message: text })
-      } else {
-        await chatApi.send(ticketId, text)
-      }
-
-      const [updatedTicketRes, updatedMessagesRes] = await Promise.all([
-        ticketApi.getOne(ticketId),
-        ticketApi.getMessages(ticketId)
-      ])
-
-      setTicketDetails(updatedTicketRes.data)
-
-      const formatted = (updatedMessagesRes.data || []).map(m => {
-        let senderName = 'Customer'
-        if (m.senderType === 'AI') senderName = 'HelpDesk AI'
-        else if (m.senderType === 'AGENT') senderName = 'Support Agent'
-        else if (updatedTicketRes.data?.user?.name) senderName = updatedTicketRes.data.user.name
-
-        return {
-          role: m.senderType === 'AI' ? 'ai' : m.senderType === 'AGENT' ? 'agent' : 'user',
-          senderName,
-          text: m.content,
-          time: m.sentAt ? new Date(m.sentAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : now()
+      if (!activeTicketId) {
+        // Ticketless AI Chat flow (no ticket required)
+        const res = await chatApi.direct(text)
+        const replyText = res.data?.reply || "Sorry, I couldn't answer that right now. Please try again or report a problem to our team."
+        const aiMsg = {
+          role: 'ai',
+          senderType: 'AI',
+          senderName: 'AI Helper',
+          text: replyText,
+          time: now()
         }
-      })
+        setMessages(prev => [...prev, aiMsg])
+      } else {
+        // Chat flow for existing ticket
+        if (isAdminOrAgent) {
+          await adminApi.replyTicket(activeTicketId, { message: text })
+        } else {
+          await chatApi.send(activeTicketId, text)
+        }
 
-      setMessages(formatted)
+        const [updatedTicketRes, updatedMessagesRes] = await Promise.all([
+          ticketApi.getOne(activeTicketId),
+          ticketApi.getMessages(activeTicketId)
+        ])
+
+        setTicketDetails(updatedTicketRes.data)
+
+        const formatted = (updatedMessagesRes.data || []).map(m => {
+          let senderName = 'Customer'
+          if (m.senderType === 'AI') senderName = 'AI Helper'
+          else if (m.senderType === 'AGENT') senderName = 'Support Agent'
+          else if (updatedTicketRes.data?.user?.name) senderName = updatedTicketRes.data.user.name
+
+          return {
+            id: m.id,
+            senderType: m.senderType,
+            role: m.senderType === 'AI' ? 'ai' : m.senderType === 'AGENT' ? 'agent' : 'user',
+            senderName,
+            text: m.content,
+            time: m.sentAt ? new Date(m.sentAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : now()
+          }
+        })
+
+        setMessages(formatted)
+      }
     } catch (err) {
       toast('Failed to deliver message', 'error')
+      setMessages(prev => [
+        ...prev,
+        {
+          role: 'ai',
+          senderType: 'AI',
+          senderName: 'AI Helper',
+          text: "Sorry, I couldn't answer that right now. Please try again or report a problem to our team.",
+          time: now()
+        }
+      ])
     } finally {
       setLoading(false)
     }
   }
 
+  const [viewportHeight, setViewportHeight] = useState(null)
+
+  useEffect(() => {
+    if (!window.visualViewport) return
+    const handleResize = () => {
+      setViewportHeight(window.visualViewport.height)
+    }
+    window.visualViewport.addEventListener('resize', handleResize)
+    return () => window.visualViewport.removeEventListener('resize', handleResize)
+  }, [])
+
   return (
     <div className="main">
       <TopBar
-        title={activeTicketId ? `Live Support Session #${activeTicketId}` : 'AI Support Chat Assistant'}
-        subtitle={ticketDetails?.title ? `Subject: ${ticketDetails.title}` : 'Grounded RAG Knowledge Base Support'}
+        title={activeTicketId ? `Request #${activeTicketId} — Live Chat` : 'Chat with AI'}
+        subtitle={ticketDetails?.title ? `Subject: ${ticketDetails.title}` : 'Instant answers & 24/7 support'}
         actions={
           isCustomer && (
             <button
@@ -366,14 +407,20 @@ export default function ChatPage() {
                 navigate('/chat', { replace: true })
               }}
             >
-              <Plus size={15} /> New Conversation
+              <Plus size={15} /> Start New Chat
             </button>
           )
         }
       />
 
-      <div className="page" style={{ padding: 0, height: 'calc(100vh - 65px)' }}>
-        <div className="chat-wrap">
+      <div
+        className="page"
+        style={{
+          padding: 0,
+          height: viewportHeight ? `${viewportHeight - 120}px` : 'calc(100dvh - 124px)'
+        }}
+      >
+        <div className="chat-wrap" style={{ height: '100%' }}>
           {/* Main Conversation Box */}
           <div className="chat-main">
             {/* Header bar */}
@@ -381,11 +428,11 @@ export default function ChatPage() {
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 {ticketDetails?.assignedTo !== 'AI' && ticketDetails?.assignedTo !== 'UNASSIGNED' && ticketDetails?.assignedTo ? (
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: 600, color: '#60a5fa' }}>
-                    <Headphones size={16} /> Handled by Support Agent ({ticketDetails.assignedTo})
+                    <Headphones size={16} /> Connected with Support Agent ({ticketDetails.assignedTo})
                   </div>
                 ) : (
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: 600, color: 'var(--accent-light)' }}>
-                    <div className="ai-dot" /> HelpDesk Hybrid RAG Assistant Online
+                    <div className="ai-dot" /> AI Helper Online
                   </div>
                 )}
               </div>
@@ -396,9 +443,9 @@ export default function ChatPage() {
                     className="btn btn-sm"
                     style={{ background: 'var(--amber-bg)', border: '1px solid var(--amber-border)', color: '#fbbf24', fontWeight: 600 }}
                     onClick={handleOpenSupportModal}
-                    title="Talk to Human Support"
+                    title="Talk to a human"
                   >
-                    <Headphones size={13} /> Talk to Human Support
+                    <Headphones size={13} /> Talk to a human
                   </button>
                 )}
                 {isAdmin && ticketDetails && !isClosed && (
@@ -406,9 +453,9 @@ export default function ChatPage() {
                     className="btn btn-sm btn-danger"
                     onClick={handleCloseTicket}
                     disabled={closingTicket}
-                    title="Close Ticket"
+                    title="Close Request"
                   >
-                    <CheckCircle2 size={13} /> {closingTicket ? 'Closing...' : 'Close Ticket'}
+                    <CheckCircle2 size={13} /> {closingTicket ? 'Closing...' : 'Mark Solved'}
                   </button>
                 )}
                 {ticketDetails && (
@@ -425,34 +472,67 @@ export default function ChatPage() {
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 18px', background: 'var(--amber-bg)', borderBottom: '1px solid var(--amber-border)', fontSize: '12.5px', color: '#fbbf24' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <AlertTriangle size={16} />
-                  <span>Human Support Selection Requested</span>
+                  <span>Waiting for human support agent connection</span>
                 </div>
                 <button
                   className="btn btn-sm"
                   style={{ background: '#fbbf24', color: '#0f172a', fontWeight: 700 }}
                   onClick={handleOpenSupportModal}
                 >
-                  <Headphones size={13} /> Select Representative
+                  <Headphones size={13} /> Choose Support Agent
                 </button>
               </div>
             )}
 
             {/* Message Area */}
             <div className="messages-area">
-              {messages.map((m, i) => (
-                <div key={i} className={`msg ${m.role}`}>
-                  <div className="msg-sender">
-                    {m.role === 'ai' ? <Bot size={14} style={{ color: 'var(--accent-light)' }} /> : m.role === 'agent' ? <Headphones size={14} style={{ color: '#60a5fa' }} /> : <User size={14} />}
-                    <span>{m.senderName}</span>
+              {messages.map((m, i) => {
+                const isCurrentAdminOrAgent = user?.role === 'ADMIN' || user?.role === 'AGENT'
+                const isSelf = isCurrentAdminOrAgent
+                  ? (m.senderType === 'AGENT' || m.role === 'agent')
+                  : (m.senderType === 'CUSTOMER' || m.senderType === 'USER' || m.role === 'user')
+
+                const alignClass = isSelf ? 'self' : 'other'
+                const typeClass = (m.senderType === 'AI' || m.role === 'ai')
+                  ? 'ai'
+                  : ((m.senderType === 'AGENT' || m.role === 'agent') ? 'agent' : 'user')
+
+                const isFallbackOrEscalated = typeClass === 'ai' && (
+                  m.text?.includes("couldn't answer") ||
+                  m.text?.includes("report a problem") ||
+                  m.text?.includes("routing the ticket") ||
+                  m.text?.includes("escalated") ||
+                  m.text?.includes("human support")
+                )
+
+                return (
+                  <div key={m.id || i} className={`msg ${alignClass} ${typeClass}`}>
+                    <div className="msg-sender">
+                      {typeClass === 'ai' ? <Bot size={14} style={{ color: 'var(--accent-light)' }} /> : typeClass === 'agent' ? <Headphones size={14} style={{ color: '#60a5fa' }} /> : <User size={14} />}
+                      <span>{m.senderName}</span>
+                    </div>
+                    <div className="msg-bubble">
+                      <div>{m.text}</div>
+                      {isFallbackOrEscalated && isCustomer && !isClosed && (
+                        <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid var(--border)' }}>
+                          <button
+                            className="btn btn-sm"
+                            style={{ background: 'var(--amber-bg)', border: '1px solid var(--amber-border)', color: '#fbbf24', fontWeight: 600, fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}
+                            onClick={handleOpenSupportModal}
+                          >
+                            <Headphones size={13} /> Report a Problem / Talk to Human
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                    <div className="msg-time">{m.time}</div>
                   </div>
-                  <div className="msg-bubble">{m.text}</div>
-                  <div className="msg-time">{m.time}</div>
-                </div>
-              ))}
+                )
+              })}
 
               {loading && (
                 <div className="msg ai">
-                  <div className="msg-sender"><Bot size={14} /> HelpDesk AI</div>
+                  <div className="msg-sender"><Bot size={14} /> AI Helper</div>
                   <div className="typing-dots">
                     <div className="typing-dot" />
                     <div className="typing-dot" />
@@ -463,10 +543,10 @@ export default function ChatPage() {
               <div ref={endRef} />
             </div>
 
-            {/* Suggestions Chips (If start of conversation) */}
-            {messages.length <= 2 && !isClosed && (
-              <div style={{ padding: '8px 20px', display: 'flex', gap: '8px', overflowX: 'auto', background: 'rgba(15, 23, 42, 0.4)', borderTop: '1px solid var(--border)' }}>
-                {SUGGESTIONS.map((s, idx) => {
+            {/* 3 Clickable Suggestion Chips */}
+            {!isClosed && (
+              <div style={{ padding: '10px 20px', display: 'flex', gap: '10px', overflowX: 'auto', background: 'rgba(15, 23, 42, 0.4)', borderTop: '1px solid var(--border)' }}>
+                {CHAT_SUGGESTIONS.map((s, idx) => {
                   const Icon = s.icon
                   return (
                     <button
@@ -479,9 +559,15 @@ export default function ChatPage() {
                           handleSend(s.msg)
                         }
                       }}
-                      style={{ border: '1px solid var(--border)', background: s.isHumanTrigger ? 'var(--amber-bg)' : 'var(--bg-card)', color: s.isHumanTrigger ? '#fbbf24' : 'inherit', whiteSpace: 'nowrap' }}
+                      style={{
+                        border: '1px solid var(--border)',
+                        background: s.isHumanTrigger ? 'var(--amber-bg)' : 'var(--bg-card)',
+                        color: s.isHumanTrigger ? '#fbbf24' : 'var(--text-main)',
+                        whiteSpace: 'nowrap',
+                        fontWeight: 500
+                      }}
                     >
-                      <Icon size={13} style={{ color: s.isHumanTrigger ? '#fbbf24' : 'var(--accent-light)' }} /> {s.label}
+                      <Icon size={14} style={{ color: s.isHumanTrigger ? '#fbbf24' : 'var(--accent-light)' }} /> {s.label}
                     </button>
                   )
                 })}
@@ -500,7 +586,7 @@ export default function ChatPage() {
                 <textarea
                   ref={inputRef}
                   className="input chat-input"
-                  placeholder="Type your question or support issue..."
+                  placeholder="Ask a question or describe your problem..."
                   value={input}
                   onChange={e => setInput(e.target.value)}
                   onKeyDown={e => {
@@ -523,7 +609,7 @@ export default function ChatPage() {
               </form>
             ) : (
               <div style={{ padding: '16px', textAlign: 'center', background: 'var(--bg-input)', borderTop: '1px solid var(--border)', color: 'var(--text-dim)', fontSize: '13px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
-                <CheckCircle2 size={15} style={{ color: 'var(--green)' }} /> This ticket has been marked as resolved and closed.
+                <CheckCircle2 size={15} style={{ color: 'var(--green)' }} /> This request has been marked as solved and closed.
               </div>
             )}
           </div>
@@ -532,10 +618,10 @@ export default function ChatPage() {
           <div className="chat-sidebar-panel">
             {ticketDetails ? (
               <div className="card">
-                <h3 style={{ fontSize: '14px', fontWeight: 700, marginBottom: '14px' }}>Ticket Context</h3>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '12.5px' }}>
+                <h3 style={{ fontSize: '14px', fontWeight: 700, marginBottom: '14px' }}>Request Details</h3>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', fontSize: '12.5px' }}>
                   <div>
-                    <div className="form-label">Ticket ID</div>
+                    <div className="form-label">Request ID</div>
                     <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--accent-light)', fontWeight: 600 }}>#{ticketDetails.id}</span>
                   </div>
                   <div>
@@ -547,13 +633,13 @@ export default function ChatPage() {
                     <span style={{ color: 'var(--text-main)' }}>{ticketDetails.user?.name || ticketDetails.user?.email || 'Customer'}</span>
                   </div>
                   <div>
-                    <div className="form-label">Assigned Handler</div>
-                    <span style={{ fontWeight: 600 }}>{ticketDetails.assignedTo || 'AI'}</span>
+                    <div className="form-label">Handled By</div>
+                    <span style={{ fontWeight: 600 }}>{ticketDetails.assignedTo || 'AI Helper'}</span>
                   </div>
                   <div>
-                    <div className="form-label">AI RAG Grounded</div>
+                    <div className="form-label">Solved by AI</div>
                     <span style={{ color: ticketDetails.aiResolved ? 'var(--green)' : 'var(--text-dim)' }}>
-                      {ticketDetails.aiResolved ? 'Verified KB Matched' : 'Pending Human Action'}
+                      {ticketDetails.aiResolved ? 'Yes (Solved by AI)' : 'Assigned to Support Agent'}
                     </span>
                   </div>
                   {isCustomer && !isClosed && (
@@ -562,7 +648,7 @@ export default function ChatPage() {
                       style={{ marginTop: '10px', width: '100%', background: 'var(--amber-bg)', border: '1px solid var(--amber-border)', color: '#fbbf24', fontWeight: 600, justifyContent: 'center' }}
                       onClick={handleOpenSupportModal}
                     >
-                      <Headphones size={14} /> Talk to Human Support
+                      <Headphones size={14} /> Talk to a human
                     </button>
                   )}
                   {isAdmin && !isClosed && (
@@ -572,7 +658,7 @@ export default function ChatPage() {
                       onClick={handleCloseTicket}
                       disabled={closingTicket}
                     >
-                      <CheckCircle2 size={14} /> {closingTicket ? 'Closing Ticket...' : 'Close Ticket'}
+                      <CheckCircle2 size={14} /> {closingTicket ? 'Closing...' : 'Mark Solved'}
                     </button>
                   )}
                 </div>
@@ -581,11 +667,13 @@ export default function ChatPage() {
               <div className="card">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
                   <Sparkles size={16} style={{ color: 'var(--accent-light)' }} />
-                  <h3 style={{ fontSize: '14px', fontWeight: 700 }}>AI Helpdesk Info</h3>
+                  <h3 style={{ fontSize: '14px', fontWeight: 700 }}>Chat Help</h3>
                 </div>
-                <p style={{ fontSize: '12.5px', color: 'var(--text-muted)', lineHeight: 1.6 }}>
-                  Our Hybrid RAG engine matches your request against our official knowledge articles using vector similarity and exact keyword retrieval.
-                </p>
+                <div style={{ fontSize: '12.5px', color: 'var(--text-muted)', lineHeight: 1.6, display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <div>• AI answers common questions instantly 24/7.</div>
+                  <div>• Need more help? Click "Talk to a human" anytime.</div>
+                  <div>• All your chat history is saved in My Requests.</div>
+                </div>
               </div>
             )}
 
@@ -662,7 +750,7 @@ export default function ChatPage() {
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <Headphones size={20} style={{ color: 'var(--accent-light)' }} />
                 <h3 style={{ fontSize: '16px', fontWeight: 700, margin: 0, color: 'var(--text-main)' }}>
-                  Select a Support Representative
+                  Connect with Support Agent
                 </h3>
               </div>
               <button
@@ -689,7 +777,7 @@ export default function ChatPage() {
               {loadingAgents ? (
                 <div style={{ padding: '24px 0', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
                   <Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }} />
-                  <span>Loading support representatives...</span>
+                  <span>Loading support agents...</span>
                 </div>
               ) : agentsError ? (
                 <div style={{ padding: '12px 16px', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid var(--red-border)', borderRadius: 'var(--radius-sm)', color: 'var(--red)', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -698,7 +786,7 @@ export default function ChatPage() {
               ) : availableAgents.length === 0 ? (
                 <div style={{ padding: '20px', background: 'var(--bg-input)', border: '1px dashed var(--border)', borderRadius: 'var(--radius-sm)', textAlign: 'center' }}>
                   <div style={{ fontSize: '13px', color: 'var(--text-dim)' }}>
-                    No active representatives found at this time. Please try again shortly.
+                    No support agents available right now. Please try again in a few moments.
                   </div>
                 </div>
               ) : (
@@ -772,7 +860,7 @@ export default function ChatPage() {
                 ) : (
                   <>
                     <UserCheck size={16} />
-                    <span>Send to Human Support</span>
+                    <span>Connect with Support Agent</span>
                   </>
                 )}
               </button>
