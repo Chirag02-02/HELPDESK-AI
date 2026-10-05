@@ -73,8 +73,8 @@ class JwtAuthFilter extends OncePerRequestFilter {
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
-                                    HttpServletResponse response,
-                                    FilterChain filterChain)
+            HttpServletResponse response,
+            FilterChain filterChain)
             throws ServletException, IOException {
 
         final String authHeader = request.getHeader("Authorization");
@@ -93,8 +93,9 @@ class JwtAuthFilter extends OncePerRequestFilter {
                 if (jwtUtil.isTokenValid(jwt, userDetails)) {
                     var authToken = new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(
                             userDetails, null, userDetails.getAuthorities());
-                    authToken.setDetails(new org.springframework.security.web.authentication.WebAuthenticationDetailsSource()
-                            .buildDetails(request));
+                    authToken.setDetails(
+                            new org.springframework.security.web.authentication.WebAuthenticationDetailsSource()
+                                    .buildDetails(request));
                     SecurityContextHolder.getContext().setAuthentication(authToken);
                 }
             }
@@ -123,14 +124,14 @@ public class SecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .authorizeHttpRequests(auth -> auth
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/api/uploads/**").permitAll()
                         .requestMatchers("/swagger-ui/**", "/api-docs/**", "/swagger-ui.html").permitAll()
                         .requestMatchers("/actuator/health").permitAll()
                         .requestMatchers("/api/admin/**").hasAnyRole("ADMIN", "AGENT")
                         .requestMatchers("/api/profile/**", "/api/tickets/**", "/api/chat/**").authenticated()
-                        .anyRequest().authenticated()
-                )
+                        .anyRequest().authenticated())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authenticationProvider(authenticationProvider())
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
@@ -159,14 +160,13 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
         config.setAllowedOriginPatterns(List.of(
-            "http://localhost:*",
-            "https://localhost:*",
-            "http://localhost",
-            "https://localhost",
-            "capacitor://localhost",
-            "https://helpdesk-ai-git-master-chirag-s-projects23.vercel.app",
-            "*"
-        ));
+                "http://localhost:*",
+                "https://localhost:*",
+                "http://localhost",
+                "https://localhost",
+                "capacitor://localhost",
+                "https://helpdesk-ai-git-master-chirag-s-projects23.vercel.app",
+                "*"));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD", "PATCH"));
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true);
